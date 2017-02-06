@@ -1,0 +1,9 @@
+[package]
+name = "libgsdmm"
+version = "0.1.0"
+authors = ["Ryan Walker <ryan@ryanwalker.us>"]
+
+[dependencies]
+docopt = "0.7.0"
+rustc-serialize = "0.3"
+random_choice = "0.3.2"

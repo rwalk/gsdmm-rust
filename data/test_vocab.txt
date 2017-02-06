@@ -1,0 +1,9 @@
+dog
+cat
+parrot
+elephant
+moose
+elk
+giraffe
+finch
+monkey
