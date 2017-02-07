@@ -12,10 +12,11 @@ pub struct GSDMM {
     D:usize,
     maxit:isize,
     docs:Vec<Vec<String>>,
-    labels: Vec<usize>,
-    cluster_counts: Vec<u32>,
-    cluster_word_counts:Vec<u32>,
-    cluster_word_distributions: Vec<HashMap<String,u32>>
+    clusters:Vec<usize>,
+    pub labels: Vec<usize>,
+    pub cluster_counts: Vec<u32>,
+    pub cluster_word_counts:Vec<u32>,
+    pub cluster_word_distributions: Vec<HashMap<String,u32>>
 }
 
 impl GSDMM {
@@ -32,7 +33,7 @@ impl GSDMM {
         let V = utilized_vocab.len() as f64;
         println!("Fitting with alpha={}, beta={}, K={}, maxit={}, vocab size={}", alpha, beta, K, maxit, V as u32);
 
-        let labels = (0_usize..K).collect::<Vec<usize>>();
+        let clusters = (0_usize..K).collect::<Vec<usize>>();
         let mut d_z: Vec<usize> = (0_usize..D).map(|_| 0_usize).collect::<Vec<usize>>(); // doc labels
         let mut m_z: Vec<u32> = GSDMM::zero_vector(K);  // cluster sizes
         let mut n_z: Vec<u32> = GSDMM::zero_vector(K);  // cluster word counts
@@ -43,8 +44,9 @@ impl GSDMM {
         }
 
         // randomly initialize cluster assignment
-        let mut p = (0..K).map(|_| 1_f64 / (K as f64)).collect::<Vec<f64>>();
-        let choices = random_choice().random_choice_f64(&labels, &p, D);
+        let p = (0..K).map(|_| 1_f64 / (K as f64)).collect::<Vec<f64>>();
+
+        let choices = random_choice().random_choice_f64(&clusters, &p, D) ;
         for i in 0..D {
             let z = choices[i].clone();
             let ref doc = docs[i];
@@ -68,6 +70,7 @@ impl GSDMM {
             D: D,
             maxit:maxit,
             docs:docs,
+            clusters: clusters.clone(),
             labels: d_z,
             cluster_counts: m_z,
             cluster_word_counts: n_z,
@@ -105,7 +108,7 @@ impl GSDMM {
                 let p = self.score(&doc);
 
                 // choose the next cluster randomly according to the computed probability
-                let z_new: usize = random_choice().random_choice_f64(&self.labels, &p, 1)[0].clone();
+                let z_new: usize = random_choice().random_choice_f64(&self.clusters, &p, 1)[0].clone();
 
                 // transfer document to the new cluster
                 if z_new != z_old {
@@ -121,7 +124,7 @@ impl GSDMM {
                         if !new_clust_words.contains_key(word) {
                             new_clust_words.insert(word.clone(), 0_u32);
                         }
-                            * new_clust_words.get_mut(word).unwrap() += 1_u32;
+                            *new_clust_words.get_mut(word).unwrap() += 1_u32;
                     }
                 }
             }
@@ -142,8 +145,7 @@ impl GSDMM {
         let lD1 = ((self.D - 1) as f64 + (self.K as f64) * self.alpha).ln();
         let doc_size = doc.len() as u32;
         for label in 0_usize..self.K {
-            let N1 = self.cluster_counts[label] as f64 + self.alpha;
-            let lN1 = if N1 > 0_f64 { N1.ln() } else { 0_f64 };
+            let lN1 = (self.cluster_counts[label] as f64 + self.alpha).ln();
             let mut lN2 = 0_f64;
             let mut lD2 = 0_f64;
 
