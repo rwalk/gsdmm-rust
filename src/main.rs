@@ -60,9 +60,17 @@ fn main() {
     let alpha = args.flag_alpha;
     let beta = args.flag_beta;
     let K = args.flag_k as usize;
-    let V = vocab.len() as f64;
     let D = docs.len();
-    println!("Fitting with alpha={}, beta={}, K={}, maxit={}.", alpha, beta, K, args.flag_maxit);
+
+    // compute utilized vocabulary size.
+    let mut utilized_vocab = HashSet::with_capacity(vocab.len());
+    for doc in &docs {
+        for word in doc {
+            utilized_vocab.insert(word.clone());
+        }
+    }
+    let V = utilized_vocab.len() as f64;
+    println!("Fitting with alpha={}, beta={}, K={}, maxit={}, vocab size={}", alpha, beta, K, args.flag_maxit, V as u32);
 
     let labels = (0_usize..K).collect::<Vec<usize>>();
     let mut d_z:Vec<usize>  = (0_usize..D).map(|_| 0_usize).collect::<Vec<usize>>(); // doc labels
@@ -128,19 +136,18 @@ fn main() {
                 let ref cluster: HashMap<String, u32> = n_z_w[label];
 
                 for word in doc {
-                    lN2 += *cluster.get(word).unwrap_or(&0_u32) as f64 + beta;
+                    lN2 += (*cluster.get(word).unwrap_or(&0_u32) as f64 + beta).ln();
                 }
-                for j in 0_u32..doc_size {
-                    lD2 += (n_z[label] + j) as f64 - 1_f64 + V * beta;
+                for j in 1_u32..(doc_size+1) {
+                    lD2 += ((n_z[label] + j) as f64 - 1_f64 + V * beta).ln();
                 }
-                lN2 = if lN2 > 0_f64 { lN2.ln() } else { 0_f64 };
-                lD2 = if lD2 > 0_f64 { lD2.ln() } else { 0_f64 };
                 p[label] = (lN1 - lD1 + lN2 - lD2).exp();
             }
             let pnorm: f64 = p.iter().sum();
             for label in 0_usize..K {
                 p[label] = p[label] / pnorm;
             }
+
             // choose the next cluster randomly according to the computed probability
             let z_new: usize = random_choice().random_choice_f64(&labels, &p, 1)[0].clone();
 
@@ -162,10 +169,15 @@ fn main() {
                 }
             }
         }
-        number_clusters = n_z_w.iter().map(|c| if c.len()>0 {1} else {0} ).sum();
-        if (it % 100 == 0) {
-            println!("Iteration {}: {} docs transferred with {} clusters populated.", it, total_transfers, number_clusters);
+        let new_number_clusters = n_z_w.iter().map(|c| if c.len()>0 {1} else {0} ).sum();
+        println!("Iteration {}: {} docs transferred with {} clusters populated.", it, total_transfers, new_number_clusters);
+
+        // apply ad-hoc convergence test
+        if (total_transfers==0 && new_number_clusters==number_clusters) {
+            println!("Converged after {} iterations. Solution has {} clusters.", it, new_number_clusters);
+            break
         }
+        number_clusters = new_number_clusters;
     }
 
     // write the labels
