@@ -70,7 +70,7 @@ impl GSDMM {
             D: D,
             maxit:maxit,
             docs:docs,
-            clusters: clusters.clone(),
+            clusters: clusters.clone(),     // Don't totally get why we need the clone here!
             labels: d_z,
             cluster_counts: m_z,
             cluster_word_counts: n_z,
