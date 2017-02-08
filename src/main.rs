@@ -13,7 +13,7 @@ const USAGE: &'static str ="
 Gibbs sampling algorithm for a Dirichlet Mixture Model of Yin and Wang 2014.
 
 Usage:
-  gsdmm <datafile> <vocabfile> <outprefix> [-k <max_clusters>] [-a <alpha>] [-b <beta>] [-m <maxit>]
+  gsdmm <datafile> <vocabfile> <labelout> <clusterout> [-k <max_clusters>] [-a <alpha>] [-b <beta>] [-m <maxit>]
   gsdmm (-h | --help)
   gsdmm --version
 
@@ -58,25 +58,13 @@ fn main() {
     let mut model = GSDMM::new(args.flag_alpha, args.flag_beta, args.flag_k, args.flag_maxit, vocab, docs);
     model.fit();
 
-    // write the labels
-    {
-        let error_msg = format!("Could not write file!");
-        let mut f = File::create(&args.arg_labelout).expect(&error_msg);
-        f.write_all(model.labels.iter().map(|label| label.to_string()).collect::<Vec<String>>().join("\n").as_bytes());
-    }
-
-    // write the cluster descriptions
-    {
-        let error_msg = format!("Could not write file!");
-        let mut f = File::create(&args.arg_clusterout).expect(&error_msg);
-        for k in 0..args.flag_k {
-            let ref word_dist = model.cluster_word_distributions[k];
-            let mut line = k.to_string() + " ";
-            let mut dist_counts:Vec<String> = word_dist.iter().map(|(a,b)| a.clone() + ":" + &b.clone().to_string() ).collect();
-            dist_counts.sort();
-            line += &dist_counts.join(" ");
-            f.write((line+"\n").as_bytes());
-        }
+    // write the label probabilities
+    let error_msg = format!("Could not write file!");
+    let mut f = File::create(&args.arg_labelout).expect(&error_msg);
+    for doc in &(model.docs) {
+        let p = model.score(&doc);
+        let line = p.iter().map(|k| k.to_string()).collect::<Vec<String>>().join(",");
+        f.write((line+"\n").as_bytes());
     }
 
     // write the cluster descriptions

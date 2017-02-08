@@ -11,8 +11,8 @@ pub struct GSDMM {
     V:f64,
     D:usize,
     maxit:isize,
-    docs:Vec<Vec<String>>,
     clusters:Vec<usize>,
+    pub docs:Vec<Vec<String>>,
     pub labels: Vec<usize>,
     pub cluster_counts: Vec<u32>,
     pub cluster_word_counts:Vec<u32>,
@@ -140,7 +140,7 @@ impl GSDMM {
         }
     }
 
-    fn score(&self, doc:&Vec<String>) -> Vec<f64> {
+    pub fn score(&self, doc:&Vec<String>) -> Vec<f64> {
         let mut p = (0..self.K).map(|_| 0_f64).collect::<Vec<f64>>();
         let lD1 = ((self.D - 1) as f64 + (self.K as f64) * self.alpha).ln();
         let doc_size = doc.len() as u32;
