@@ -6,7 +6,7 @@ use gsdmm::GSDMM;
 use docopt::Docopt;
 use std::io::{BufRead,BufReader};
 use std::fs::File;
-use std::collections::{HashSet, HashMap};
+use std::collections::HashSet;
 use std::io::Write;
 
 const USAGE: &'static str ="
@@ -52,7 +52,16 @@ fn main() {
     // get the data and vocabulary
     let vocab:HashSet<String> = lines_from_file(&args.arg_vocabfile).into_iter().collect();
     let docs:Vec<Vec<String>> = lines_from_file(&args.arg_datafile).into_iter().map(|line| {
-        line.to_owned().split_whitespace().map(|s| s.to_owned()).filter(|s| (&vocab).contains(s)).collect::<Vec<String>>()
+        let mut term_vector = line.to_owned()
+            .split_whitespace()
+            .map(|s| s.to_owned())
+            .filter(|s| (&vocab).contains(s))
+            .collect::<Vec<String>>();
+
+        // sort and dedupe: this implementation requires binary term counts
+        term_vector.sort();
+        term_vector.dedup();
+        term_vector
     }).collect::<Vec<Vec<String>>>();
 
     let mut model = GSDMM::new(args.flag_alpha, args.flag_beta, args.flag_k, args.flag_maxit, vocab, docs);
