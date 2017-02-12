@@ -1,6 +1,7 @@
 extern crate random_choice;
 
 use std::collections::{HashSet, HashMap};
+use std::iter::FromIterator;
 use std::cmp::max;
 use self::random_choice::random_choice;
 
@@ -11,8 +12,8 @@ pub struct GSDMM {
     V:f64,
     D:usize,
     maxit:isize,
-    clusters:Vec<usize>,
-    pub docs:Vec<Vec<String>>,
+    clusters: Vec<usize>,
+    pub docs: Vec<Vec<String>>,
     pub labels: Vec<usize>,
     pub cluster_counts: Vec<u32>,
     pub cluster_word_counts:Vec<u32>,
@@ -174,5 +175,54 @@ impl GSDMM {
         }
         v
     }
+
 }
 
+#[test]
+fn simple_run() {
+    let mut vocab = HashSet::<String>::new();
+    vocab.insert("A".to_string());
+    vocab.insert("B".to_string());
+    vocab.insert("C".to_string());
+
+    let mut docs = Vec::<Vec<String>>::new();
+    docs.push(vec!("A".to_string()));
+    docs.push(vec!("A".to_string()));
+    docs.push(vec!("B".to_string()));
+    docs.push(vec!("B".to_string()));
+    docs.push(vec!("B".to_string()));
+    docs.push(vec!("B".to_string()));
+    docs.push(vec!("B".to_string()));
+    docs.push(vec!("B".to_string()));
+    docs.push(vec!("B".to_string()));
+    docs.push(vec!("B".to_string()));
+    docs.push(vec!("C".to_string()));
+    docs.push(vec!("C".to_string()));
+    docs.push(vec!("C".to_string()));
+    docs.push(vec!("C".to_string()));
+    docs.push(vec!("C".to_string()));
+    docs.push(vec!("C".to_string()));
+    docs.push(vec!("C".to_string()));
+    docs.push(vec!("C".to_string()));
+
+    let mut model = GSDMM::new(0.1, 0.00001, 10, 30, vocab, docs);
+    model.fit();
+
+    // check the total number across all partitions is equal to the number of docs
+    assert_eq!(18, model.cluster_counts.iter().sum::<u32>());
+
+    // check that we get three clusters
+    assert_eq!(3, model.cluster_counts.into_iter().filter(|x| x>&0_u32 ).collect::<Vec<u32>>().len());
+
+    // check that the clusters are pure
+    println!("{:?}", model.cluster_word_distributions);
+    let mut check_map = HashMap::<usize,String>::new();
+    for (i,label) in vec!("A","A","B","B","B","B","B","B","B","B","C","C","C","C","C","C","C","C").into_iter().enumerate() {
+        if check_map.contains_key(&model.labels[i]) {
+            assert_eq!(check_map[&model.labels[i]], label);
+        } else {
+            check_map.insert(model.labels[i], label.to_string());
+        }
+
+    }
+}
