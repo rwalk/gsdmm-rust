@@ -13,7 +13,7 @@ const USAGE: &'static str ="
 Gibbs sampling algorithm for a Dirichlet Mixture Model of Yin and Wang 2014.
 
 Usage:
-  gsdmm <datafile> <vocabfile> <labelout> <clusterout> [-k <max_clusters>] [-a <alpha>] [-b <beta>] [-m <maxit>]
+  gsdmm <datafile> <vocabfile> <outprefix> [-k <max_clusters>] [-a <alpha>] [-b <beta>] [-m <maxit>]
   gsdmm (-h | --help)
   gsdmm --version
 
@@ -35,8 +35,7 @@ struct Args {
     //    flag_mode: isize,
     arg_datafile: String,
     arg_vocabfile: String,
-    arg_labelout: String,
-    arg_clusterout: String,
+    arg_outprefix: String,
     flag_k: usize,
     flag_alpha: f64,
     flag_beta: f64,
@@ -67,19 +66,37 @@ fn main() {
     let mut model = GSDMM::new(args.flag_alpha, args.flag_beta, args.flag_k, args.flag_maxit, vocab, docs);
     model.fit();
 
+    // write the labels
+    {
+        let fname = (&args.arg_outprefix).clone() + "labels.csv";
+        let error_msg = format ! ("Could not write file {}!", fname);
+        let mut f = File::create( fname ).expect( & error_msg);
+        for doc in & (model.docs) {
+            let p = model.score( & doc);
+            let mut row = p.iter().enumerate().collect::<Vec<_>>();
+            row.sort_by(|a,b| a.1.partial_cmp(b.1).unwrap());
+            let line = row.pop().unwrap();
+            f.write((line.0.to_string() + "," + &line.1.to_string() + "\n").as_bytes());
+        }
+    }
+
     // write the label probabilities
-    let error_msg = format!("Could not write file!");
-    let mut f = File::create(&args.arg_labelout).expect(&error_msg);
-    for doc in &(model.docs) {
-        let p = model.score(&doc);
-        let line = p.iter().map(|k| k.to_string()).collect::<Vec<String>>().join(",");
-        f.write((line+"\n").as_bytes());
+    {
+        let fname = (&args.arg_outprefix).clone() + "label_probabilities.csv";
+        let error_msg = format ! ("Could not write file {}!", fname);
+        let mut f = File::create( fname ).expect( & error_msg);
+        for doc in & (model.docs) {
+            let p = model.score( & doc);
+            let line = p.iter().map( | k | (*k as f32).to_string()).collect::< Vec< String > > ().join(",");
+            f.write((line + "\n").as_bytes());
+        }
     }
 
     // write the cluster descriptions
     {
-        let error_msg = format!("Could not write file!");
-        let mut f = File::create(&args.arg_clusterout).expect(&error_msg);
+        let fname = (&args.arg_outprefix).clone() + "cluster_descriptions.txt";
+        let error_msg = format!("Could not write file {}!", fname);
+        let mut f = File::create(fname).expect(&error_msg);
         for k in 0..args.flag_k {
             let ref word_dist = model.cluster_word_distributions[k];
             let mut line = k.to_string() + " ";
@@ -97,5 +114,4 @@ fn main() {
         let buf = BufReader::new(file);
         buf.lines().map(|l| l.expect("Could not parse line!")).collect()
     }
-
 }
