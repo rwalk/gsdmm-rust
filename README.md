@@ -58,7 +58,7 @@ examples/grades/grades_out_cluster_descriptions.txt
 examples/grades/grades_out_label_probabilities.csv
 examples/grades_out_labels.csv
 ```
-The cluster descriptions file lists the vocabulary for each each cluster, labeled 1-K. The label probabilities file is a `n_docs x K` matrix in `.csv` format giving the probability for each document to appear in the clusters 1-K.  The labels file provides a cluster label for each document and the probability of that label. Each line in the labels file is simply the pair `argmax,max` computed from the corresponding line in the label probability file. 
+The cluster descriptions file lists the vocabulary for each each cluster, labeled 1-K. The label probabilities file is a `n_docs x K` matrix in `.csv` format giving the probability for each document to appear in the clusters 1-K.  The labels file provides a cluster label for each document and the probability of that label. Each line in the labels file is simply the pair `argmax,max,text` computed from the corresponding line in the label probability file. 
 
 ## Practical tips
 A few ideas for working with GSDMM:

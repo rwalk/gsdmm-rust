@@ -71,12 +71,17 @@ fn main() {
         let fname = (&args.arg_outprefix).clone() + "labels.csv";
         let error_msg = format ! ("Could not write file {}!", fname);
         let mut f = File::create( fname ).expect( & error_msg);
+        let mut scored = Vec::<(String,String,String)>::new();
         for doc in & (model.docs) {
             let p = model.score( & doc);
             let mut row = p.iter().enumerate().collect::<Vec<_>>();
             row.sort_by(|a,b| a.1.partial_cmp(b.1).unwrap());
             let line = row.pop().unwrap();
-            f.write((line.0.to_string() + "," + &line.1.to_string() + "\n").as_bytes());
+            scored.push((line.0.to_string(), line.1.to_string(), doc.join(" ")));
+        }
+        scored.sort();
+        for (label, score, txt) in scored {
+            f.write((label + "," + &score + "," + &txt + "\n").as_bytes());
         }
     }
 
