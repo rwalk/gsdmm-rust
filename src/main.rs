@@ -72,12 +72,14 @@ fn main() {
         let error_msg = format ! ("Could not write file {}!", fname);
         let mut f = File::create( fname ).expect( & error_msg);
         let mut scored = Vec::<(String,String,String)>::new();
-        for doc in & (model.docs) {
+
+        // zip with the input data so we get clustered, raw input documents in the output set
+        for (doc,txt) in (&model.docs).iter().zip(lines_from_file(&args.arg_datafile).iter()) {
             let p = model.score( & doc);
             let mut row = p.iter().enumerate().collect::<Vec<_>>();
             row.sort_by(|a,b| a.1.partial_cmp(b.1).unwrap());
             let line = row.pop().unwrap();
-            scored.push((line.0.to_string(), line.1.to_string(), doc.join(" ")));
+            scored.push((line.0.to_string(), line.1.to_string(), txt.clone()));
         }
         scored.sort();
         for (label, score, txt) in scored {
