@@ -142,6 +142,25 @@ impl GSDMM {
     }
 
     pub fn score(&self, doc:&Vec<String>) -> Vec<f64> {
+        /// Score an input document using the formula of Yin and Wang 2014 (equation 3)
+        /// http://dbgroup.cs.tsinghua.edu.cn/wangjy/papers/KDD14-GSDMM.pdf
+        ///
+        /// # Arguments
+        ///
+        /// * `doc` - A vector of unique string tokens characterizing the document
+        ///
+        /// # Value
+        ///
+        /// Vec<f64> - A length K probability vector where each component represents the probability
+        /// of the doc belonging to a particular cluster.
+        ///
+
+        // We break the formula into the following pieces
+        // p = N1*N2/(D1*D2) = exp(lN1 - lD1 + lN2 - lD2)
+        // lN1 = log(m_z[z] + alpha)
+        // lN2 = log(D - 1 + K*alpha)
+        // lN2 = log(product(n_z_w[w] + beta)) = sum(log(n_z_w[w] + beta))
+        // lD2 = log(product(n_z[d] + V*beta + i -1)) = sum(log(n_z[d] + V*beta + i -1))
         let mut p = (0..self.K).map(|_| 0_f64).collect::<Vec<f64>>();
         let lD1 = ((self.D - 1) as f64 + (self.K as f64) * self.alpha).ln();
         let doc_size = doc.len() as u32;
@@ -160,6 +179,8 @@ impl GSDMM {
             }
             p[label] = (lN1 - lD1 + lN2 - lD2).exp();
         }
+
+        // normalize the probability
         let pnorm: f64 = p.iter().sum();
         for label in 0_usize..self.K {
             p[label] = p[label] / pnorm;
