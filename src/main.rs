@@ -78,19 +78,13 @@ fn main() {
         for (doc,txt) in (&model.docs).iter().zip(lines_from_file(&args.arg_datafile).iter()) {
             let p = model.score( & doc);
             let mut row = p.iter().enumerate().collect::<Vec<_>>();
-            let mut defect_count = 0;
-            row.sort_by(|a,b| a.1.partial_cmp(b.1).unwrap_or({
-                if defect_count == 0 {
-                    println!("Could not compare {:?} ? {:?} for document:\n {:?}", a, b, doc);
-                    defect_count+=1;
-                }
-                match a.1.is_nan() {
-                    true => Ordering::Less,
-                    false => Ordering::Greater
-                }
-            }));
-            let line = row.pop().unwrap();
-            scored.push((line.0.to_string(), line.1.to_string(), txt.clone()));
+            if row_has_nan(&row, &doc) {
+                scored.push(("-1".to_string(), "0".to_string(), txt.clone()));
+            } else {
+                row.sort_by(|a, b| (a.1.partial_cmp(b.1)).unwrap());
+                let line = row.pop().unwrap();
+                scored.push((line.0.to_string(), line.1.to_string(), txt.clone()));
+            }
         }
         scored.sort();
         for (label, score, txt) in scored {
@@ -119,5 +113,15 @@ fn main() {
         let file = File::open(filename).expect(&error_msg);
         let buf = BufReader::new(file);
         buf.lines().map(|l| l.expect("Could not parse line!")).collect()
+    }
+
+    fn row_has_nan(row:&Vec<(usize, &f64)>, doc:&Vec<String>) -> bool {
+        for entry in row {
+            if entry.1.is_nan() {
+                println!("Cluster: {:?} has NaN score for document {:?}", entry, doc);
+                return true
+            }
+        }
+        return false;
     }
 }
