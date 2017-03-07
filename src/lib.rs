@@ -182,8 +182,10 @@ impl GSDMM {
 
         // normalize the probability
         let pnorm: f64 = p.iter().sum();
-        for label in 0_usize..self.K {
-            p[label] = p[label] / pnorm;
+        if pnorm>0_f64 {
+            for label in 0_usize..self.K {
+                p[label] = p[label] / pnorm;
+            }
         }
         p
     }
