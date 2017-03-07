@@ -8,6 +8,7 @@ use std::io::{BufRead,BufReader};
 use std::fs::File;
 use std::collections::HashSet;
 use std::io::Write;
+use std::cmp::Ordering;
 
 const USAGE: &'static str ="
 Gibbs sampling algorithm for a Dirichlet Mixture Model of Yin and Wang 2014.
@@ -77,7 +78,17 @@ fn main() {
         for (doc,txt) in (&model.docs).iter().zip(lines_from_file(&args.arg_datafile).iter()) {
             let p = model.score( & doc);
             let mut row = p.iter().enumerate().collect::<Vec<_>>();
-            row.sort_by(|a,b| a.1.partial_cmp(b.1).unwrap());
+            let mut defect_count = 0;
+            row.sort_by(|a,b| a.1.partial_cmp(b.1).unwrap_or({
+                if defect_count == 0 {
+                    println!("Could not compare {:?} ? {:?} for document:\n {:?}", a, b, doc);
+                    defect_count+=1;
+                }
+                match a.1.is_nan() {
+                    true => Ordering::Less,
+                    false => Ordering::Greater
+                }
+            }));
             let line = row.pop().unwrap();
             scored.push((line.0.to_string(), line.1.to_string(), txt.clone()));
         }
