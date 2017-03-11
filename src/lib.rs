@@ -13,11 +13,13 @@ pub struct GSDMM {
     D:usize,
     maxit:isize,
     clusters: Vec<usize>,
-    pub docs: Vec<Vec<String>>,
+    pub doc_vectors:Vec<Vec<usize>>,
     pub labels: Vec<usize>,
     pub cluster_counts: Vec<u32>,
     pub cluster_word_counts:Vec<u32>,
-    pub cluster_word_distributions: Vec<HashMap<String,u32>>
+    pub word_index_map:HashMap<String, usize>,
+    pub index_word_map:HashMap<usize, String>,
+    pub cluster_word_distributions: Vec<HashMap<usize,u32>>
 }
 
 impl GSDMM {
@@ -25,22 +27,39 @@ impl GSDMM {
         let D = docs.len();
 
         // compute utilized vocabulary size.
-        let mut utilized_vocab = HashSet::with_capacity(vocab.len());
+        let mut word_index_map = HashMap::<String, usize>::with_capacity(vocab.len()/2);
+        let mut index_word_map = HashMap::<usize, String>::with_capacity(vocab.len()/2);
+        let mut index = 0_usize;
+        let mut doc_vectors = Vec::<Vec<usize>>::with_capacity(D);
         for doc in &docs {
+            let mut doc_vector = Vec::<usize>::with_capacity(doc.len());
             for word in doc {
-                utilized_vocab.insert(word.clone());
+                if !word_index_map.contains_key(word) {
+                    word_index_map.insert(word.clone(), index);
+                    index_word_map.insert(index, word.clone());
+                    index+=1;
+                }
+                doc_vector.push(word_index_map.get(word).unwrap().clone());
             }
+
+            // dedupe vector and compact
+            doc_vector.sort();
+            doc_vector.dedup();
+            doc_vector.shrink_to_fit();
+
+            // stash
+            doc_vectors.push(doc_vector);
         }
-        let V = utilized_vocab.len() as f32;
+        let V = index as f32;
         println!("Fitting with alpha={}, beta={}, K={}, maxit={}, vocab size={}", alpha, beta, K, maxit, V as u32);
 
         let clusters = (0_usize..K).collect::<Vec<usize>>();
         let mut d_z: Vec<usize> = (0_usize..D).map(|_| 0_usize).collect::<Vec<usize>>(); // doc labels
         let mut m_z: Vec<u32> = GSDMM::zero_vector(K);  // cluster sizes
         let mut n_z: Vec<u32> = GSDMM::zero_vector(K);  // cluster word counts
-        let mut n_z_w = Vec::<HashMap<String, u32>>::with_capacity(K);  // container for cluster word distributions
+        let mut n_z_w = Vec::<HashMap<usize, u32>>::with_capacity(K);  // container for cluster word distributions
         for _ in 0_usize..K {
-            let mut m = HashMap::<String, u32>::with_capacity(max(vocab.len() / 10, 100));
+            let mut m = HashMap::<usize, u32>::with_capacity(max(vocab.len() / 10, 100));
             &n_z_w.push(m);
         }
 
@@ -50,11 +69,11 @@ impl GSDMM {
         let choices = random_choice().random_choice_f32(&clusters, &p, D) ;
         for i in 0..D {
             let z = choices[i].clone();
-            let ref doc = docs[i];
+            let ref doc = doc_vectors[i];
             d_z[i] = z;
             m_z[z] += 1;
             n_z[z] += doc.len() as u32;
-            let ref mut clust_words: HashMap<String, u32> = n_z_w[z];
+            let ref mut clust_words: HashMap<usize, u32> = n_z_w[z];
             for word in doc {
                 if !clust_words.contains_key(word) {
                     clust_words.insert(word.clone(), 0_u32);
@@ -70,11 +89,13 @@ impl GSDMM {
             V: V,
             D: D,
             maxit:maxit,
-            docs:docs,
+            doc_vectors:doc_vectors,
             clusters: clusters.clone(),     // Don't totally get why we need the clone here!
             labels: d_z,
             cluster_counts: m_z,
             cluster_word_counts: n_z,
+            word_index_map: word_index_map,
+            index_word_map: index_word_map,
             cluster_word_distributions: n_z_w
         }
     }
@@ -84,7 +105,7 @@ impl GSDMM {
         for it in 0..self.maxit {
             let mut total_transfers = 0;
             for i in 0..self.D {
-                let ref doc = self.docs[i];
+                let ref doc = self.doc_vectors[i];
                 let doc_size = doc.len() as u32;
 
                 // remove the doc from its current cluster
@@ -94,7 +115,7 @@ impl GSDMM {
 
                 // modify the map: enclose it in a block so we can borrow views again.
                 {
-                    let ref mut old_clust_words: HashMap<String, u32> = self.cluster_word_distributions[z_old];
+                    let ref mut old_clust_words: HashMap<usize, u32> = self.cluster_word_distributions[z_old];
                     for word in doc {
                         *old_clust_words.get_mut(word).unwrap() -= 1_u32;
 
@@ -120,7 +141,7 @@ impl GSDMM {
                 self.cluster_word_counts[z_new] += doc_size;
 
                 {
-                    let ref mut new_clust_words: HashMap<String, u32> = self.cluster_word_distributions[z_new];
+                    let ref mut new_clust_words: HashMap<usize, u32> = self.cluster_word_distributions[z_new];
                     for word in doc {
                         if !new_clust_words.contains_key(word) {
                             new_clust_words.insert(word.clone(), 0_u32);
@@ -141,13 +162,13 @@ impl GSDMM {
         }
     }
 
-    pub fn score(&self, doc:&Vec<String>) -> Vec<f32> {
+    pub fn score(&self, doc:&Vec<usize>) -> Vec<f32> {
         /// Score an input document using the formula of Yin and Wang 2014 (equation 3)
         /// http://dbgroup.cs.tsinghua.edu.cn/wangjy/papers/KDD14-GSDMM.pdf
         ///
         /// # Arguments
         ///
-        /// * `doc` - A vector of unique string tokens characterizing the document
+        /// * `doc` - A vector of unique index tokens characterizing the document
         ///
         /// # Value
         ///
@@ -169,7 +190,7 @@ impl GSDMM {
             let mut lN2 = 0_f32;
             let mut lD2 = 0_f32;
 
-            let ref cluster: HashMap<String, u32> = self.cluster_word_distributions[label];
+            let ref cluster: HashMap<usize, u32> = self.cluster_word_distributions[label];
 
             for word in doc {
                 lN2 += (*cluster.get(word).unwrap_or(&0_u32) as f32 + self.beta).ln();

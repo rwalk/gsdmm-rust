@@ -75,10 +75,10 @@ fn main() {
         let mut scored = Vec::<(String,String,String)>::new();
 
         // zip with the input data so we get clustered, raw input documents in the output set
-        for (doc,txt) in (&model.docs).iter().zip(lines_from_file(&args.arg_datafile).iter()) {
+        for (doc,txt) in (&model.doc_vectors).iter().zip(lines_from_file(&args.arg_datafile).iter()) {
             let p = model.score( & doc);
             let mut row = p.iter().enumerate().collect::<Vec<_>>();
-            if row_has_nan(&row, &doc) {
+            if row_has_nan(&row, txt) {
                 scored.push(("-1".to_string(), "0".to_string(), txt.clone()));
             } else {
                 row.sort_by(|a, b| (a.1.partial_cmp(b.1)).unwrap());
@@ -100,7 +100,7 @@ fn main() {
         for k in 0..args.flag_k {
             let ref word_dist = model.cluster_word_distributions[k];
             let mut line = k.to_string() + " ";
-            let mut dist_counts:Vec<String> = word_dist.iter().map(|(a,b)| a.clone() + ":" + &b.clone().to_string() ).collect();
+            let mut dist_counts:Vec<String> = word_dist.iter().map(|(a,b)| model.index_word_map.get(a).unwrap().to_string() + ":" + &b.clone().to_string() ).collect();
             dist_counts.sort();
             line += &dist_counts.join(" ");
             f.write((line+"\n").as_bytes());
@@ -115,7 +115,7 @@ fn main() {
         buf.lines().map(|l| l.expect("Could not parse line!")).collect()
     }
 
-    fn row_has_nan(row:&Vec<(usize, &f32)>, doc:&Vec<String>) -> bool {
+    fn row_has_nan(row:&Vec<(usize, &f32)>, doc:&String) -> bool {
         for entry in row {
             if entry.1.is_nan() {
                 println!("Cluster: {:?} has NaN score for document {:?}", entry, doc);
