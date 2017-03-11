@@ -6,10 +6,10 @@ use std::cmp::max;
 use self::random_choice::random_choice;
 
 pub struct GSDMM {
-    alpha: f64,
-    beta: f64,
+    alpha: f32,
+    beta: f32,
     K:usize,
-    V:f64,
+    V:f32,
     D:usize,
     maxit:isize,
     clusters: Vec<usize>,
@@ -21,7 +21,7 @@ pub struct GSDMM {
 }
 
 impl GSDMM {
-    pub fn new(alpha:f64, beta:f64, K: usize, maxit:isize, vocab:HashSet<String>, docs:Vec<Vec<String>>) -> GSDMM {
+    pub fn new(alpha:f32, beta:f32, K: usize, maxit:isize, vocab:HashSet<String>, docs:Vec<Vec<String>>) -> GSDMM {
         let D = docs.len();
 
         // compute utilized vocabulary size.
@@ -31,7 +31,7 @@ impl GSDMM {
                 utilized_vocab.insert(word.clone());
             }
         }
-        let V = utilized_vocab.len() as f64;
+        let V = utilized_vocab.len() as f32;
         println!("Fitting with alpha={}, beta={}, K={}, maxit={}, vocab size={}", alpha, beta, K, maxit, V as u32);
 
         let clusters = (0_usize..K).collect::<Vec<usize>>();
@@ -45,9 +45,9 @@ impl GSDMM {
         }
 
         // randomly initialize cluster assignment
-        let p = (0..K).map(|_| 1_f64 / (K as f64)).collect::<Vec<f64>>();
+        let p = (0..K).map(|_| 1_f32 / (K as f32)).collect::<Vec<f32>>();
 
-        let choices = random_choice().random_choice_f64(&clusters, &p, D) ;
+        let choices = random_choice().random_choice_f32(&clusters, &p, D) ;
         for i in 0..D {
             let z = choices[i].clone();
             let ref doc = docs[i];
@@ -109,7 +109,7 @@ impl GSDMM {
                 let p = self.score(&doc);
 
                 // choose the next cluster randomly according to the computed probability
-                let z_new: usize = random_choice().random_choice_f64(&self.clusters, &p, 1)[0].clone();
+                let z_new: usize = random_choice().random_choice_f32(&self.clusters, &p, 1)[0].clone();
 
                 // transfer document to the new cluster
                 if z_new != z_old {
@@ -141,7 +141,7 @@ impl GSDMM {
         }
     }
 
-    pub fn score(&self, doc:&Vec<String>) -> Vec<f64> {
+    pub fn score(&self, doc:&Vec<String>) -> Vec<f32> {
         /// Score an input document using the formula of Yin and Wang 2014 (equation 3)
         /// http://dbgroup.cs.tsinghua.edu.cn/wangjy/papers/KDD14-GSDMM.pdf
         ///
@@ -151,7 +151,7 @@ impl GSDMM {
         ///
         /// # Value
         ///
-        /// Vec<f64> - A length K probability vector where each component represents the probability
+        /// Vec<f32> - A length K probability vector where each component represents the probability
         /// of the doc belonging to a particular cluster.
         ///
 
@@ -161,28 +161,28 @@ impl GSDMM {
         // lN2 = log(D - 1 + K*alpha)
         // lN2 = log(product(n_z_w[w] + beta)) = sum(log(n_z_w[w] + beta))
         // lD2 = log(product(n_z[d] + V*beta + i -1)) = sum(log(n_z[d] + V*beta + i -1))
-        let mut p = (0..self.K).map(|_| 0_f64).collect::<Vec<f64>>();
-        let lD1 = ((self.D - 1) as f64 + (self.K as f64) * self.alpha).ln();
+        let mut p = (0..self.K).map(|_| 0_f32).collect::<Vec<f32>>();
+        let lD1 = ((self.D - 1) as f32 + (self.K as f32) * self.alpha).ln();
         let doc_size = doc.len() as u32;
         for label in 0_usize..self.K {
-            let lN1 = (self.cluster_counts[label] as f64 + self.alpha).ln();
-            let mut lN2 = 0_f64;
-            let mut lD2 = 0_f64;
+            let lN1 = (self.cluster_counts[label] as f32 + self.alpha).ln();
+            let mut lN2 = 0_f32;
+            let mut lD2 = 0_f32;
 
             let ref cluster: HashMap<String, u32> = self.cluster_word_distributions[label];
 
             for word in doc {
-                lN2 += (*cluster.get(word).unwrap_or(&0_u32) as f64 + self.beta).ln();
+                lN2 += (*cluster.get(word).unwrap_or(&0_u32) as f32 + self.beta).ln();
             }
             for j in 1_u32..(doc_size+1) {
-                lD2 += ((self.cluster_word_counts[label] + j) as f64 - 1_f64 + self.V * self.beta).ln();
+                lD2 += ((self.cluster_word_counts[label] + j) as f32 - 1_f32 + self.V * self.beta).ln();
             }
             p[label] = (lN1 - lD1 + lN2 - lD2).exp();
         }
 
         // normalize the probability
-        let pnorm: f64 = p.iter().sum();
-        if pnorm>0_f64 {
+        let pnorm: f32 = p.iter().sum();
+        if pnorm>0_f32 {
             for label in 0_usize..self.K {
                 p[label] = p[label] / pnorm;
             }
