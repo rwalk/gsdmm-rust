@@ -1,8 +1,11 @@
+#![allow(non_snake_case)]
+
 extern crate random_choice;
+extern crate fnv;
 
 use std::collections::{HashSet, HashMap};
-use std::iter::FromIterator;
 use std::cmp::max;
+use fnv::FnvHashMap;
 use self::random_choice::random_choice;
 
 pub struct GSDMM {
@@ -19,7 +22,7 @@ pub struct GSDMM {
     pub cluster_word_counts:Vec<u32>,
     pub word_index_map:HashMap<String, usize>,
     pub index_word_map:HashMap<usize, String>,
-    pub cluster_word_distributions: Vec<HashMap<usize,u32>>
+    pub cluster_word_distributions: Vec<FnvHashMap<usize,u32>>
 }
 
 impl GSDMM {
@@ -57,9 +60,9 @@ impl GSDMM {
         let mut d_z: Vec<usize> = (0_usize..D).map(|_| 0_usize).collect::<Vec<usize>>(); // doc labels
         let mut m_z: Vec<u32> = GSDMM::zero_vector(K);  // cluster sizes
         let mut n_z: Vec<u32> = GSDMM::zero_vector(K);  // cluster word counts
-        let mut n_z_w = Vec::<HashMap<usize, u32>>::with_capacity(K);  // container for cluster word distributions
+        let mut n_z_w = Vec::<FnvHashMap<usize, u32>>::with_capacity(K);  // container for cluster word distributions
         for _ in 0_usize..K {
-            let mut m = HashMap::<usize, u32>::with_capacity(max(vocab.len() / 10, 100));
+            let m = FnvHashMap::<usize, u32>::with_capacity_and_hasher(max(vocab.len() / 10, 100), Default::default());
             &n_z_w.push(m);
         }
 
@@ -73,7 +76,7 @@ impl GSDMM {
             d_z[i] = z;
             m_z[z] += 1;
             n_z[z] += doc.len() as u32;
-            let ref mut clust_words: HashMap<usize, u32> = n_z_w[z];
+            let ref mut clust_words: FnvHashMap<usize, u32> = n_z_w[z];
             for word in doc {
                 if !clust_words.contains_key(word) {
                     clust_words.insert(word.clone(), 0_u32);
@@ -115,7 +118,7 @@ impl GSDMM {
 
                 // modify the map: enclose it in a block so we can borrow views again.
                 {
-                    let ref mut old_clust_words: HashMap<usize, u32> = self.cluster_word_distributions[z_old];
+                    let ref mut old_clust_words: FnvHashMap<usize, u32> = self.cluster_word_distributions[z_old];
                     for word in doc {
                         *old_clust_words.get_mut(word).unwrap() -= 1_u32;
 
@@ -141,7 +144,7 @@ impl GSDMM {
                 self.cluster_word_counts[z_new] += doc_size;
 
                 {
-                    let ref mut new_clust_words: HashMap<usize, u32> = self.cluster_word_distributions[z_new];
+                    let ref mut new_clust_words: FnvHashMap<usize, u32> = self.cluster_word_distributions[z_new];
                     for word in doc {
                         if !new_clust_words.contains_key(word) {
                             new_clust_words.insert(word.clone(), 0_u32);
@@ -190,7 +193,7 @@ impl GSDMM {
             let mut lN2 = 0_f32;
             let mut lD2 = 0_f32;
 
-            let ref cluster: HashMap<usize, u32> = self.cluster_word_distributions[label];
+            let ref cluster: FnvHashMap<usize, u32> = self.cluster_word_distributions[label];
 
             for word in doc {
                 lN2 += (*cluster.get(word).unwrap_or(&0_u32) as f32 + self.beta).ln();
@@ -259,7 +262,6 @@ fn simple_run() {
     assert_eq!(3, model.cluster_counts.into_iter().filter(|x| x>&0_u32 ).collect::<Vec<u32>>().len());
 
     // check that the clusters are pure
-    println!("{:?}", model.cluster_word_distributions);
     let mut check_map = HashMap::<usize,String>::new();
     for (i,label) in vec!("A","A","B","B","B","B","B","B","B","B","C","C","C","C","C","C","C","C").into_iter().enumerate() {
         if check_map.contains_key(&model.labels[i]) {
@@ -269,4 +271,31 @@ fn simple_run() {
         }
 
     }
+}
+
+#[test]
+fn indexing() {
+    let mut vocab = HashSet::<String>::new();
+    vocab.insert("A".to_string());
+    vocab.insert("B".to_string());
+    vocab.insert("C".to_string());
+    vocab.insert("D".to_string());
+
+    let mut docs = Vec::<Vec<String>>::new();
+    docs.push(vec!("A".to_string(),"B".to_string()));
+    docs.push(vec!("D".to_string()));
+    docs.push(vec!("C".to_string()));
+
+    let mut model = GSDMM::new(0.1, 0.00001, 10, 30, vocab, docs);
+
+    // test the index mapping
+    assert_eq!("A", model.index_word_map.get(&0_usize).unwrap());
+    assert_eq!("B", model.index_word_map.get(&1_usize).unwrap());
+    assert_eq!("C", model.index_word_map.get(&3_usize).unwrap());
+    assert_eq!("D", model.index_word_map.get(&2_usize).unwrap());
+    assert_eq!(0_usize, *model.word_index_map.get("A").unwrap());
+    assert_eq!(1_usize, *model.word_index_map.get("B").unwrap());
+    assert_eq!(2_usize, *model.word_index_map.get("D").unwrap());
+    assert_eq!(3_usize, *model.word_index_map.get("C").unwrap());
+
 }
