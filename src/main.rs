@@ -37,8 +37,8 @@ struct Args {
     arg_vocabfile: String,
     arg_outprefix: String,
     flag_k: usize,
-    flag_alpha: f32,
-    flag_beta: f32,
+    flag_alpha: f64,
+    flag_beta: f64,
     flag_maxit: isize
 }
 
@@ -114,7 +114,7 @@ fn main() {
         buf.lines().map(|l| l.expect("Could not parse line!")).collect()
     }
 
-    fn row_has_nan(row:&Vec<(usize, &f32)>, doc:&String) -> bool {
+    fn row_has_nan(row:&Vec<(usize, &f64)>, doc:&String) -> bool {
         for entry in row {
             if entry.1.is_nan() {
                 println!("Cluster: {:?} has NaN score for document {:?}", entry, doc);
