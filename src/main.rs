@@ -85,7 +85,7 @@ fn main() {
                 scored.push((line.0.to_string(), line.1.to_string()));
             }
         }
-        scored.sort();
+
         for (label, score) in scored {
             let _ = f.write((label + "," + &score + "\n").as_bytes());
         }
