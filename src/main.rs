@@ -8,7 +8,6 @@ use std::io::{BufRead,BufReader};
 use std::fs::File;
 use std::collections::HashSet;
 use std::io::Write;
-use std::cmp::Ordering;
 
 const USAGE: &'static str ="
 Gibbs sampling algorithm for a Dirichlet Mixture Model of Yin and Wang 2014.
@@ -72,23 +71,23 @@ fn main() {
         let fname = (&args.arg_outprefix).clone() + "labels.csv";
         let error_msg = format ! ("Could not write file {}!", fname);
         let mut f = File::create( fname ).expect( & error_msg);
-        let mut scored = Vec::<(String,String,String)>::new();
+        let mut scored = Vec::<(String,String)>::new();
 
         // zip with the input data so we get clustered, raw input documents in the output set
-        for (doc,txt) in (&model.docs).iter().zip(lines_from_file(&args.arg_datafile).iter()) {
+        for (doc,txt) in (&model.doc_vectors).iter().zip(lines_from_file(&args.arg_datafile).iter()) {
             let p = model.score( & doc);
             let mut row = p.iter().enumerate().collect::<Vec<_>>();
-            if row_has_nan(&row, &doc) {
-                scored.push(("-1".to_string(), "0".to_string(), txt.clone()));
+            if row_has_nan(&row, txt) {
+                scored.push(("-1".to_string(), "0".to_string()));
             } else {
                 row.sort_by(|a, b| (a.1.partial_cmp(b.1)).unwrap());
                 let line = row.pop().unwrap();
-                scored.push((line.0.to_string(), line.1.to_string(), txt.clone()));
+                scored.push((line.0.to_string(), line.1.to_string()));
             }
         }
-        scored.sort();
-        for (label, score, txt) in scored {
-            f.write((label + "," + &score + "," + &txt + "\n").as_bytes());
+
+        for (label, score) in scored {
+            let _ = f.write((label + "," + &score + "\n").as_bytes());
         }
     }
 
@@ -100,10 +99,10 @@ fn main() {
         for k in 0..args.flag_k {
             let ref word_dist = model.cluster_word_distributions[k];
             let mut line = k.to_string() + " ";
-            let mut dist_counts:Vec<String> = word_dist.iter().map(|(a,b)| a.clone() + ":" + &b.clone().to_string() ).collect();
+            let mut dist_counts:Vec<String> = word_dist.iter().map(|(a,b)| model.index_word_map.get(a).unwrap().to_string() + ":" + &b.clone().to_string() ).collect();
             dist_counts.sort();
             line += &dist_counts.join(" ");
-            f.write((line+"\n").as_bytes());
+            let _ = f.write((line+"\n").as_bytes());
         }
     }
 
@@ -115,7 +114,7 @@ fn main() {
         buf.lines().map(|l| l.expect("Could not parse line!")).collect()
     }
 
-    fn row_has_nan(row:&Vec<(usize, &f64)>, doc:&Vec<String>) -> bool {
+    fn row_has_nan(row:&Vec<(usize, &f64)>, doc:&String) -> bool {
         for entry in row {
             if entry.1.is_nan() {
                 println!("Cluster: {:?} has NaN score for document {:?}", entry, doc);
