@@ -201,16 +201,20 @@ impl GSDMM {
             for j in 1_u32..(doc_size+1) {
                 lD2 += ((self.cluster_word_counts[label] + j) as f64 - 1_f64 + self.V * self.beta).ln();
             }
+            println!("lN1: {}, lD1: {}, lN2: {}, lD2: {}", lN1, lD1, lN2, lD2);
+            println!("p: {}", (lN1 - lD1 + lN2 - lD2).exp());
             p[label] = (lN1 - lD1 + lN2 - lD2).exp();
         }
 
         // normalize the probability
         let pnorm: f64 = p.iter().sum();
+        println!("pnorm: {}", pnorm);
         if pnorm>0_f64 {
             for label in 0_usize..self.K {
                 p[label] = p[label] / pnorm;
             }
         }
+        println!("pvec: {:?}\n\n", p);
         p
     }
 
