@@ -201,8 +201,6 @@ impl GSDMM {
             for j in 1_u32..(doc_size+1) {
                 lD2 += ((self.cluster_word_counts[label] + j) as f64 - 1_f64 + self.V * self.beta).ln();
             }
-            println!("lN1: {}, lD1: {}, lN2: {}, lD2: {}", lN1, lD1, lN2, lD2);
-            println!("p: {}", (lN1 - lD1 + lN2 - lD2).exp());
             p[label] = (lN1 - lD1 + lN2 - lD2).exp();
         }
 
@@ -215,6 +213,7 @@ impl GSDMM {
             }
         }
         println!("pvec: {:?}\n\n", p);
+        println!("pvec norm: {}", p.iter().sum());
         p
     }
 
