@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Ryan Walker <ryan@ryanwalker.us>"]
 
 [dependencies]
-docopt = "0.7.0"
-rustc-serialize = "0.3"
+docopt = "1"
+serde = { version = "1", features = ["derive"] }
 random_choice = "0.3.2"
 fnv = "1.0.3"
