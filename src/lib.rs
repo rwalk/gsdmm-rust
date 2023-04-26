@@ -166,18 +166,18 @@ impl GSDMM {
     }
 
     pub fn score(&self, doc:&Vec<usize>) -> Vec<f64> {
-        /// Score an input document using the formula of Yin and Wang 2014 (equation 3)
-        /// http://dbgroup.cs.tsinghua.edu.cn/wangjy/papers/KDD14-GSDMM.pdf
-        ///
-        /// # Arguments
-        ///
-        /// * `doc` - A vector of unique index tokens characterizing the document
-        ///
-        /// # Value
-        ///
-        /// Vec<f64> - A length K probability vector where each component represents the probability
-        /// of the doc belonging to a particular cluster.
-        ///
+        //  Score an input document using the formula of Yin and Wang 2014 (equation 3)
+        //  http://dbgroup.cs.tsinghua.edu.cn/wangjy/papers/KDD14-GSDMM.pdf
+        // 
+        //  # Arguments
+        // 
+        //  * `doc` - A vector of unique index tokens characterizing the document
+        // 
+        //  # Value
+        // 
+        //  Vec<f64> - A length K probability vector where each component represents the probability
+        // of the doc belonging to a particular cluster.
+        //
 
         // We break the formula into the following pieces
         // p = N1*N2/(D1*D2) = exp(lN1 - lD1 + lN2 - lD2)
