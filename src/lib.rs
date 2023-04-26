@@ -188,28 +188,28 @@ impl GSDMM {
         let mut p = (0..self.K).map(|_| 0_f64).collect::<Vec<f64>>();
         let lD1 = ((self.D - 1) as f64 + (self.K as f64) * self.alpha).ln();
         let doc_size = doc.len() as u32;
-        for label in 0_usize..self.K {
+        for (label, item) in p.iter_mut().enumerate().take(self.K) {
             let lN1 = (self.cluster_counts[label] as f64 + self.alpha).ln();
             let mut lN2 = 0_f64;
             let mut lD2 = 0_f64;
-
             let cluster: &FnvHashMap<usize, u32> = &self.cluster_word_distributions[label];
-
+        
             for word in doc {
                 lN2 += (*cluster.get(word).unwrap_or(&0_u32) as f64 + self.beta).ln();
             }
-            for j in 1_u32..(doc_size+1) {
+            for j in 1_u32..(doc_size + 1) {
                 lD2 += ((self.cluster_word_counts[label] + j) as f64 - 1_f64 + self.V * self.beta).ln();
             }
-            p[label] = (lN1 - lD1 + lN2 - lD2).exp();
+            *item = (lN1 - lD1 + lN2 - lD2).exp();
         }
+        
 
         // normalize the probability
         let pnorm: f64 = p.iter().sum();
         if pnorm>0_f64 {
-            for label in 0_usize..self.K {
-                p[label] /= pnorm;
-            }
+            for item in p.iter_mut().take(self.K) {
+                *item /= pnorm;
+            }            
         }
         p
     }
@@ -232,27 +232,21 @@ fn simple_run() {
     vocab.insert("B".to_string());
     vocab.insert("C".to_string());
 
-    let mut docs = Vec::<Vec<String>>::new();
-    docs.push(vec!("A".to_string()));
-    docs.push(vec!("A".to_string()));
-    docs.push(vec!("B".to_string()));
-    docs.push(vec!("B".to_string()));
-    docs.push(vec!("B".to_string()));
-    docs.push(vec!("B".to_string()));
-    docs.push(vec!("B".to_string()));
-    docs.push(vec!("B".to_string()));
-    docs.push(vec!("B".to_string()));
-    docs.push(vec!("B".to_string()));
-    docs.push(vec!("C".to_string()));
-    docs.push(vec!("C".to_string()));
-    docs.push(vec!("C".to_string()));
-    docs.push(vec!("C".to_string()));
-    docs.push(vec!("C".to_string()));
-    docs.push(vec!("C".to_string()));
-    docs.push(vec!("C".to_string()));
-    docs.push(vec!("C".to_string()));
+    let docs = vec![
+        vec!["A".to_string()],
+        vec!["A".to_string()],
+        vec!["B".to_string()],
+        vec!["B".to_string()],
+        vec!["B".to_string()],
+        vec!["B".to_string()],
+        vec!["B".to_string()],
+        vec!["B".to_string()],
+        vec!["B".to_string()],
+        vec!["C".to_string()],
+        vec!["C".to_string()],
+    ];
 
-    let mut model = GSDMM::new(0.1, 0.00001, 10, 30, vocab, docs);
+    let mut model = GSDMM::new(0.1, 0.00001, 10, 30, &vocab, &docs);
     model.fit();
 
     // check the total number across all partitions is equal to the number of docs
@@ -264,10 +258,10 @@ fn simple_run() {
     // check that the clusters are pure
     let mut check_map = HashMap::<usize,String>::new();
     for (i,label) in vec!("A","A","B","B","B","B","B","B","B","B","C","C","C","C","C","C","C","C").into_iter().enumerate() {
-        if check_map.contains_key(&model.labels[i]) {
-            assert_eq!(check_map[&model.labels[i]], label);
+        if let std::collections::hash_map::Entry::Vacant(e) = check_map.entry(model.labels[i]) {
+            e.insert(label.to_string());
         } else {
-            check_map.insert(model.labels[i], label.to_string());
+            assert_eq!(check_map[&model.labels[i]], label);
         }
 
     }
@@ -281,12 +275,13 @@ fn indexing() {
     vocab.insert("C".to_string());
     vocab.insert("D".to_string());
 
-    let mut docs = Vec::<Vec<String>>::new();
-    docs.push(vec!("A".to_string(),"B".to_string()));
-    docs.push(vec!("D".to_string()));
-    docs.push(vec!("C".to_string()));
+    let docs = vec![
+        vec!["A".to_string(), "B    ".to_string()],
+        vec!["D".to_string()],
+        vec!["C".to_string()],
+    ];
 
-    let mut model = GSDMM::new(0.1, 0.00001, 10, 30, vocab, docs);
+    let model = GSDMM::new(0.1, 0.00001, 10, 30, &vocab, &docs);
 
     // test the index mapping
     assert_eq!("A", model.index_word_map.get(&0_usize).unwrap());
