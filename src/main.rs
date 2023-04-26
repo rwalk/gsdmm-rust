@@ -1,9 +1,10 @@
 extern crate docopt;
-extern crate rustc_serialize;
+extern crate serde;
 extern crate gsdmm;
 
 use gsdmm::GSDMM;
 use docopt::Docopt;
+use serde::Deserialize;
 use std::io::{BufRead,BufReader};
 use std::fs::File;
 use std::collections::HashSet;
@@ -30,7 +31,7 @@ Options:
 
 ";
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, Deserialize)]
 struct Args {
     //    flag_mode: isize,
     arg_datafile: String,
@@ -45,7 +46,7 @@ struct Args {
 fn main() {
 
     let args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.decode())
+        .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
 
     // get the data and vocabulary
@@ -63,7 +64,7 @@ fn main() {
         term_vector
     }).collect::<Vec<Vec<String>>>();
 
-    let mut model = GSDMM::new(args.flag_alpha, args.flag_beta, args.flag_k, args.flag_maxit, vocab, docs);
+    let mut model = GSDMM::new(args.flag_alpha, args.flag_beta, args.flag_k, args.flag_maxit, &vocab, &docs);
     model.fit();
 
     // write the labels

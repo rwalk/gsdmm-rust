@@ -26,7 +26,7 @@ pub struct GSDMM {
 }
 
 impl GSDMM {
-    pub fn new(alpha:f64, beta:f64, K: usize, maxit:isize, vocab:HashSet<String>, docs:Vec<Vec<String>>) -> GSDMM {
+    pub fn new(alpha:f64, beta:f64, K: usize, maxit:isize, vocab:&HashSet<String>, docs:&Vec<Vec<String>>) -> GSDMM {
         let D = docs.len();
 
         // compute utilized vocabulary size.
@@ -34,7 +34,7 @@ impl GSDMM {
         let mut index_word_map = HashMap::<usize, String>::with_capacity(vocab.len()/2);
         let mut index = 0_usize;
         let mut doc_vectors = Vec::<Vec<usize>>::with_capacity(D);
-        for doc in &docs {
+        for doc in docs {
             let mut doc_vector = Vec::<usize>::with_capacity(doc.len());
             for word in doc {
                 if !word_index_map.contains_key(word) {
@@ -42,7 +42,7 @@ impl GSDMM {
                     index_word_map.insert(index, word.clone());
                     index+=1;
                 }
-                doc_vector.push(word_index_map.get(word).unwrap().clone());
+                doc_vector.push(*word_index_map.get(word).unwrap());
             }
 
             // dedupe vector and compact
@@ -63,7 +63,7 @@ impl GSDMM {
         let mut n_z_w = Vec::<FnvHashMap<usize, u32>>::with_capacity(K);  // container for cluster word distributions
         for _ in 0_usize..K {
             let m = FnvHashMap::<usize, u32>::with_capacity_and_hasher(max(vocab.len() / 10, 100), Default::default());
-            &n_z_w.push(m);
+            let _ = &n_z_w.push(m);
         }
 
         // randomly initialize cluster assignment
@@ -71,34 +71,34 @@ impl GSDMM {
 
         let choices = random_choice().random_choice_f64(&clusters, &p, D) ;
         for i in 0..D {
-            let z = choices[i].clone();
-            let ref doc = doc_vectors[i];
+            let z = *choices[i];
+            let doc = &doc_vectors[i];
             d_z[i] = z;
             m_z[z] += 1;
             n_z[z] += doc.len() as u32;
-            let ref mut clust_words: FnvHashMap<usize, u32> = n_z_w[z];
+            let clust_words: &mut FnvHashMap<usize, u32> = &mut n_z_w[z];
             for word in doc {
                 if !clust_words.contains_key(word) {
-                    clust_words.insert(word.clone(), 0_u32);
+                    clust_words.insert(*word, 0_u32);
                 }
                     * clust_words.get_mut(word).unwrap() += 1_u32;
             }
         }
 
         GSDMM {
-            alpha: alpha,
-            beta: beta,
-            K: K,
-            V: V,
-            D: D,
-            maxit:maxit,
-            doc_vectors:doc_vectors,
+            alpha,
+            beta,
+            K,
+            V,
+            D,
+            maxit,
+            doc_vectors,
             clusters: clusters.clone(),     // Don't totally get why we need the clone here!
             labels: d_z,
             cluster_counts: m_z,
             cluster_word_counts: n_z,
-            word_index_map: word_index_map,
-            index_word_map: index_word_map,
+            word_index_map,
+            index_word_map,
             cluster_word_distributions: n_z_w
         }
     }
@@ -108,7 +108,7 @@ impl GSDMM {
         for it in 0..self.maxit {
             let mut total_transfers = 0;
             for i in 0..self.D {
-                let ref doc = self.doc_vectors[i];
+                let doc = &self.doc_vectors[i];
                 let doc_size = doc.len() as u32;
 
                 // remove the doc from its current cluster
@@ -118,7 +118,7 @@ impl GSDMM {
 
                 // modify the map: enclose it in a block so we can borrow views again.
                 {
-                    let ref mut old_clust_words: FnvHashMap<usize, u32> = self.cluster_word_distributions[z_old];
+                    let old_clust_words: &mut FnvHashMap<usize, u32> = &mut self.cluster_word_distributions[z_old];
                     for word in doc {
                         *old_clust_words.get_mut(word).unwrap() -= 1_u32;
 
@@ -130,10 +130,10 @@ impl GSDMM {
                 }
 
                 // update the probability vector
-                let p = self.score(&doc);
+                let p = self.score(doc);
 
                 // choose the next cluster randomly according to the computed probability
-                let z_new: usize = random_choice().random_choice_f64(&self.clusters, &p, 1)[0].clone();
+                let z_new: usize = *random_choice().random_choice_f64(&self.clusters, &p, 1)[0];
 
                 // transfer document to the new cluster
                 if z_new != z_old {
@@ -144,16 +144,16 @@ impl GSDMM {
                 self.cluster_word_counts[z_new] += doc_size;
 
                 {
-                    let ref mut new_clust_words: FnvHashMap<usize, u32> = self.cluster_word_distributions[z_new];
+                    let new_clust_words: &mut FnvHashMap<usize, u32> = &mut self.cluster_word_distributions[z_new];
                     for word in doc {
                         if !new_clust_words.contains_key(word) {
-                            new_clust_words.insert(word.clone(), 0_u32);
+                            new_clust_words.insert(*word, 0_u32);
                         }
                             *new_clust_words.get_mut(word).unwrap() += 1_u32;
                     }
                 }
             }
-            let new_number_clusters = self.cluster_word_distributions.iter().map(|c| if c.len()>0 {1} else {0} ).sum();
+            let new_number_clusters = self.cluster_word_distributions.iter().map(|c| if !c.is_empty() {1} else {0} ).sum();
             println!("Iteration {}: {} docs transferred with {} clusters populated.", it, total_transfers, new_number_clusters);
 
             // apply ad-hoc convergence test
@@ -193,7 +193,7 @@ impl GSDMM {
             let mut lN2 = 0_f64;
             let mut lD2 = 0_f64;
 
-            let ref cluster: FnvHashMap<usize, u32> = self.cluster_word_distributions[label];
+            let cluster: &FnvHashMap<usize, u32> = &self.cluster_word_distributions[label];
 
             for word in doc {
                 lN2 += (*cluster.get(word).unwrap_or(&0_u32) as f64 + self.beta).ln();
@@ -208,7 +208,7 @@ impl GSDMM {
         let pnorm: f64 = p.iter().sum();
         if pnorm>0_f64 {
             for label in 0_usize..self.K {
-                p[label] = p[label] / pnorm;
+                p[label] /= pnorm;
             }
         }
         p
