@@ -1,14 +1,14 @@
 extern crate docopt;
-extern crate serde;
 extern crate gsdmm;
+extern crate serde;
 
-use gsdmm::GSDMM;
 use docopt::Docopt;
+use gsdmm::GSDMM;
 use serde::Deserialize;
-use std::io::{BufRead,BufReader};
-use std::fs::File;
 use std::collections::HashSet;
+use std::fs::File;
 use std::io::Write;
+use std::io::{BufRead, BufReader};
 
 const USAGE: &str ="
 Gibbs sampling algorithm for a Dirichlet Mixture Model of Yin and Wang 2014.
@@ -40,43 +40,56 @@ struct Args {
     flag_k: usize,
     flag_alpha: f64,
     flag_beta: f64,
-    flag_maxit: isize
+    flag_maxit: isize,
 }
 
 fn main() {
-
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
 
     // get the data and vocabulary
-    let vocab:HashSet<String> = lines_from_file(&args.arg_vocabfile).into_iter().collect();
-    let docs:Vec<Vec<String>> = lines_from_file(&args.arg_datafile).into_iter().map(|line| {
-        let mut term_vector = line
-            .split_whitespace()
-            .map(|s| s.to_owned())
-            .filter(|s| vocab.contains(s))
-            .collect::<Vec<String>>();
+    let vocab: HashSet<String> = lines_from_file(&args.arg_vocabfile).into_iter().collect();
+    let docs: Vec<Vec<String>> = lines_from_file(&args.arg_datafile)
+        .into_iter()
+        .map(|line| {
+            let mut term_vector = line
+                .split_whitespace()
+                .map(|s| s.to_owned())
+                .filter(|s| vocab.contains(s))
+                .collect::<Vec<String>>();
 
-        // sort and dedupe: this implementation requires binary term counts
-        term_vector.sort();
-        term_vector.dedup();
-        term_vector
-    }).collect::<Vec<Vec<String>>>();
+            // sort and dedupe: this implementation requires binary term counts
+            term_vector.sort();
+            term_vector.dedup();
+            term_vector
+        })
+        .collect::<Vec<Vec<String>>>();
 
-    let mut model = GSDMM::new(args.flag_alpha, args.flag_beta, args.flag_k, args.flag_maxit, &vocab, &docs);
+    let mut model = GSDMM::new(
+        args.flag_alpha,
+        args.flag_beta,
+        args.flag_k,
+        args.flag_maxit,
+        &vocab,
+        &docs,
+    );
     model.fit();
 
     // write the labels
     {
         let fname = args.arg_outprefix.clone() + "labels.csv";
-        let error_msg = format ! ("Could not write file {}!", fname);
-        let mut f = File::create( fname ).expect( & error_msg);
-        let mut scored = Vec::<(String,String)>::new();
+        let error_msg = format!("Could not write file {}!", fname);
+        let mut f = File::create(fname).expect(&error_msg);
+        let mut scored = Vec::<(String, String)>::new();
 
         // zip with the input data so we get clustered, raw input documents in the output set
-        for (doc,txt) in model.doc_vectors.iter().zip(lines_from_file(&args.arg_datafile).iter()) {
-            let p = model.score( doc);
+        for (doc, txt) in model
+            .doc_vectors
+            .iter()
+            .zip(lines_from_file(&args.arg_datafile).iter())
+        {
+            let p = model.score(doc);
             let mut row = p.iter().enumerate().collect::<Vec<_>>();
             if row_has_nan(&row, txt) {
                 scored.push(("-1".to_string(), "0".to_string()));
@@ -100,26 +113,32 @@ fn main() {
         for k in 0..args.flag_k {
             let word_dist = &model.cluster_word_distributions[k];
             let mut line = k.to_string() + " ";
-            let mut dist_counts:Vec<String> = word_dist.iter().map(|(a,b)| model.index_word_map.get(a).unwrap().to_string() + ":" + &b.clone().to_string() ).collect();
+            let mut dist_counts: Vec<String> = word_dist
+                .iter()
+                .map(|(a, b)| {
+                    model.index_word_map.get(a).unwrap().to_string() + ":" + &b.clone().to_string()
+                })
+                .collect();
             dist_counts.sort();
             line += &dist_counts.join(" ");
-            let _ = f.write((line+"\n").as_bytes());
+            let _ = f.write((line + "\n").as_bytes());
         }
     }
 
-    fn lines_from_file(filename: &str) -> Vec<String>
-    {
+    fn lines_from_file(filename: &str) -> Vec<String> {
         let error_msg = format!("Could not read file {}!", filename);
         let file = File::open(filename).expect(&error_msg);
         let buf = BufReader::new(file);
-        buf.lines().map(|l| l.expect("Could not parse line!")).collect()
+        buf.lines()
+            .map(|l| l.expect("Could not parse line!"))
+            .collect()
     }
 
-    fn row_has_nan(row:&Vec<(usize, &f64)>, doc:&String) -> bool {
+    fn row_has_nan(row: &Vec<(usize, &f64)>, doc: &String) -> bool {
         for entry in row {
             if entry.1.is_nan() {
                 println!("Cluster: {:?} has NaN score for document {:?}", entry, doc);
-                return true
+                return true;
             }
         }
         false
